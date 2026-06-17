@@ -1,0 +1,26 @@
+# TikTok → Apify → Google Sheet automation config
+# Edit values here, commit, push. No code changes needed for routine tweaks.
+
+# Personal identifiers (Sheet ID + username) are intentionally left blank so this
+# file can be committed to a PUBLIC repo. Set them via environment variables /
+# GitHub repo Variables instead:  SPREADSHEET_ID  and  TIKTOK_USERNAME.
+# (For a private repo or local-only use, you may just fill them in here.)
+spreadsheet_id: ""
+actor_id: "clockworks/tiktok-scraper"
+
+# ─── Run A: my own posts ────────────────────────────────────────────────
+profile:
+  username: ""           # or set TIKTOK_USERNAME
+  results_per_page: 30
+  recent_days: 14        # only scrape posts from the last N days (keeps cost ~$0)
+
+# ─── Run B: hashtag / trend scan ────────────────────────────────────────
+hashtags:
+  tags: ["cheertok", "cheerleading", "cheer", "coedcheer"]
+  results_per_tag: 20
+
+# ─── Sheet tab names (matched by substring, so emoji prefixes are fine) ──
+sheets:
+  post_log: "Post Log"
+  follower_growth: "Follower Growth"
+  trend_watch: "Trend Watch"   # created automatically if missing

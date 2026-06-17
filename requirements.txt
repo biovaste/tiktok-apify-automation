@@ -1,0 +1,6 @@
+apify-client>=1.7,<2
+gspread>=6.0,<7
+google-auth>=2.27
+PyYAML>=6.0
+python-dotenv>=1.0
+
