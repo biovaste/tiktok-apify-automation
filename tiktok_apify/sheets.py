@@ -9,6 +9,7 @@ logged manually.
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 import logging
 import os
@@ -32,6 +33,24 @@ POST_HEADER_ALIASES = {
     "save": "saves",
     "link": "url",
     "url": "url",
+}
+
+# Weekly Log (v2 tracker) — one aggregate row per week. Aliases are matched by
+# substring against the header text; more specific phrases first.
+WEEKLY_HEADER_ALIASES = {
+    "week start": "week_start",
+    "week end": "week_end",
+    "week #": "week_num",
+    "new follower": "new_followers",
+    "total follower": "total_followers",
+    "posts this week": "posts",
+    "total views": "total_views",
+    "avg views": "avg_views",
+    "best performing": "best_post",
+    "best post views": "best_views",
+    "total likes": "total_likes",
+    "total comments": "total_comments",
+    "total shares": "total_shares",
 }
 
 
@@ -68,19 +87,25 @@ class Tracker:
         return None
 
     @staticmethod
-    def _find_header(values: list[list[str]], must_have: str):
-        """Return (0-based header row index, {field: 0-based col}) by scanning
-        the first few rows for a row containing `must_have`."""
-        for r in range(min(5, len(values))):
+    def _locate_header(values: list[list[str]], must_have: str, aliases: dict,
+                       max_rows: int = 8):
+        """Return (0-based header row index, {field: 0-based col}) by scanning the
+        first `max_rows` rows for a row containing `must_have`, mapping columns by
+        the given alias table."""
+        for r in range(min(max_rows, len(values))):
             cells = [c.strip().lower() for c in values[r]]
             if any(must_have in c for c in cells):
                 colmap: dict[str, int] = {}
                 for ci, cell in enumerate(cells):
-                    for alias, field in POST_HEADER_ALIASES.items():
+                    for alias, field in aliases.items():
                         if alias in cell and field not in colmap:
                             colmap[field] = ci
                 return r, colmap
         return None, {}
+
+    @classmethod
+    def _find_header(cls, values: list[list[str]], must_have: str):
+        return cls._locate_header(values, must_have, POST_HEADER_ALIASES)
 
     # ── Run A: Post Log ─────────────────────────────────────────────────
     def append_posts(self, posts: list[dict]) -> int:
@@ -185,43 +210,88 @@ class Tracker:
                     row[ci] = f"=ROUND(({likes}+{comments}+{shares})/{views}*100,2)"
                 return
 
-    # ── Run A: Follower Growth ──────────────────────────────────────────
-    def append_follower(self, count: int | None, date: str) -> bool:
-        if count is None:
-            log.warning("No follower count in scrape — skipping follower row.")
-            return False
-        ws = self._worksheet(self.cfg["sheets"]["follower_growth"])
+    # ── Run A: Weekly Log ───────────────────────────────────────────────
+    @staticmethod
+    def _cell(row: list, colmap: dict, field: str) -> str:
+        ci = colmap.get(field)
+        return row[ci] if ci is not None and ci < len(row) else ""
+
+    @staticmethod
+    def _as_int(value) -> int | None:
+        try:
+            return int(str(value).replace(",", "").strip())
+        except (ValueError, TypeError):
+            return None
+
+    def append_weekly(self, posts: list[dict], followers: int | None, run_date: str) -> bool:
+        """Append one weekly aggregate row to the Weekly Log tab.
+
+        The 7-day window ends on run_date. Private columns (FYP %, Profile Views)
+        and judgement columns (Best Post Pillar, Notes) are left blank to fill in.
+        """
+        ws = self._worksheet(self.cfg["sheets"]["weekly_log"])
         if ws is None:
-            log.warning("Follower Growth tab not found — skipping.")
+            log.warning("Weekly Log tab not found — skipping weekly row.")
             return False
 
         values = ws.get_all_values()
-        hdr, _ = self._find_header(values, "follower")
-        if hdr is None:
-            log.warning("Could not locate Follower Growth headers — skipping.")
+        hdr, colmap = self._locate_header(values, "week start", WEEKLY_HEADER_ALIASES)
+        if hdr is None or "total_followers" not in colmap:
+            log.warning("Could not locate Weekly Log headers — skipping.")
             return False
 
-        data_rows = values[hdr + 1:]
-        last_count, last_offset = None, -1
-        for i, row in enumerate(data_rows):
-            if row and row[0].strip():
-                last_offset = i
-                try:
-                    last_count = int(str(row[1]).replace(",", "").strip())
-                except (ValueError, IndexError):
-                    pass
-                if row[0].strip() == date:  # already logged today
-                    log.info("Follower Growth: %s already has a row — skipping.", date)
-                    return False
+        # Walk existing rows for the previous follower total, last week #, and to
+        # avoid double-logging the same week.
+        last_total, last_week_num, last_offset = None, 0, -1
+        for i, row in enumerate(values[hdr + 1:]):
+            if not (self._cell(row, colmap, "week_start") or self._cell(row, colmap, "total_followers")):
+                continue
+            last_offset = i
+            last_total = self._as_int(self._cell(row, colmap, "total_followers")) or last_total
+            last_week_num = self._as_int(self._cell(row, colmap, "week_num")) or last_week_num
+            if self._cell(row, colmap, "week_end") == run_date:
+                log.info("Weekly Log already has a row ending %s — skipping.", run_date)
+                return False
 
-        diff = (count - last_count) if last_count is not None else 0
-        next_row = hdr + 1 + last_offset + 2
-        new_row = [[date, count, diff, ""]]
+        end_d = dt.date.fromisoformat(run_date)
+        start_d = end_d - dt.timedelta(days=6)
+        week_start, week_end = start_d.isoformat(), end_d.isoformat()
+
+        wk = [p for p in posts if p["date"] and p["date"] >= week_start]
+        total_views = sum(int(p["views"]) for p in wk)
+        best = max(wk, key=lambda p: int(p["views"]), default=None)
+
+        fields = {
+            "week_start": week_start,
+            "week_end": week_end,
+            "week_num": (last_week_num + 1) if last_week_num else end_d.isocalendar()[1],
+            "new_followers": (followers - last_total) if (followers is not None and last_total is not None) else "",
+            "total_followers": followers if followers is not None else "",
+            "posts": len(wk),
+            "total_views": total_views,
+            "avg_views": round(total_views / len(wk)) if wk else "",
+            "best_post": (best["title"] or f"(untitled · {best['date']})")[:80] if best else "",
+            "best_views": int(best["views"]) if best else "",
+            "total_likes": sum(int(p["likes"]) for p in wk),
+            "total_comments": sum(int(p["comments"]) for p in wk),
+            "total_shares": sum(int(p["shares"]) for p in wk),
+        }
+
+        width = max(colmap.values()) + 1
+        new_row = [""] * width
+        for field, value in fields.items():
+            if field in colmap:
+                new_row[colmap[field]] = value
+
         if self.dry_run:
-            log.info("[dry-run] Would append follower row: %s = %d (%+d).", date, count, diff)
+            log.info("[dry-run] Would append Weekly Log %s..%s: followers=%s (%+s), %d posts, %d views.",
+                     week_start, week_end, followers, fields["new_followers"], len(wk), total_views)
             return True
-        ws.update(range_name=f"A{next_row}", values=new_row, value_input_option="USER_ENTERED")
-        log.info("Follower Growth: appended %s = %d (%+d).", date, count, diff)
+
+        next_row = hdr + 1 + last_offset + 2
+        ws.update(range_name=f"A{next_row}", values=[new_row], value_input_option="USER_ENTERED")
+        log.info("Weekly Log: appended %s..%s (followers=%s, %d posts, %d views).",
+                 week_start, week_end, followers, len(wk), total_views)
         return True
 
     # ── Run B: Trend Watch ──────────────────────────────────────────────

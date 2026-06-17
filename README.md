@@ -8,9 +8,9 @@ Sheet tracker. Runs on GitHub Actions — no laptop required.
 > environment variables / GitHub repo Variables, so this repo is safe to make public.
 
 ```
-Run A (my posts)  ──► Post Log        (new posts, deduped)
-                  ──► Follower Growth  (one row per run)
-Run B (hashtags)  ──► Trend Watch      (top videos, refreshed each run)
+Run A (my posts)  ──► Post Log     (new posts, deduped)
+                  ──► Weekly Log    (one aggregate row per week)
+Run B (hashtags)  ──► Trend Watch   (top videos, refreshed each run)
 ```
 
 Private data (audience demographics, hourly heatmap, watch time) **can't** be
@@ -24,12 +24,16 @@ export every month or so.
 - **Post Log** — appends any new videos from the last 14 days. Dedup uses the
   `Link` column (the post URL) when present, otherwise `date + title` — the same
   key the old CSV importer used, so nothing gets double-logged.
-- **Follower Growth** — adds one row: date, follower count, daily change.
+- **Weekly Log** — appends one aggregate row for the 7-day window ending on the
+  run date: Week Start/End, Week #, New Followers, Total Followers, Posts This
+  Week, Total Views/Likes/Comments/Shares, Avg Views/Post, and the week's Best
+  Performing Post + its views. Columns are matched by header name, so the order
+  and any extra columns don't matter.
 - **Trend Watch** — clears and rewrites a tab with the top hashtag videos
   (sorted by views), surfacing trending sounds/formats to riff on.
 
-Manual columns (Pillar, Hook Type, etc.) are left blank for you to fill — the
-script never overwrites them.
+Manual/private columns (Pillar, Hook Type, FYP %, Profile Views, Notes) are left
+blank for you to fill — the script never overwrites them.
 
 ---
 

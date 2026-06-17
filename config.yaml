@@ -22,5 +22,5 @@ hashtags:
 # ─── Sheet tab names (matched by substring, so emoji prefixes are fine) ──
 sheets:
   post_log: "Post Log"
-  follower_growth: "Follower Growth"
+  weekly_log: "Weekly Log"     # weekly aggregate row (followers, totals, best post)
   trend_watch: "Trend Watch"   # created automatically if missing

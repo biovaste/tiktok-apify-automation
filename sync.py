@@ -2,7 +2,7 @@
 """Weekly TikTok sync.
 
 Triggers the Apify scraper, then appends results to the Google Sheet tracker:
-  Run A -> Post Log (new posts) + Follower Growth (one row)
+  Run A -> Post Log (new posts) + Weekly Log (one aggregate row)
   Run B -> Trend Watch (hashtag scan, refreshed each run)
 
 Usage:
@@ -79,7 +79,7 @@ def main() -> int:
         items = apify_runner.run_profile(client, cfg)
         posts = [mapping.map_post(it) for it in items]
         tracker.append_posts(posts)
-        tracker.append_follower(mapping.follower_count(items), today)
+        tracker.append_weekly(posts, mapping.follower_count(items), today)
 
     if not args.skip_trends:
         items = apify_runner.run_hashtags(client, cfg)
