@@ -24,3 +24,24 @@ sheets:
   post_log: "Post Log"
   weekly_log: "Weekly Log"     # weekly aggregate row (followers, totals, best post)
   trend_watch: "Trend Watch"   # created automatically if missing
+
+# ─── Dropdown options applied to the Pillar / Hook Type columns of newly ──
+# added Post Log rows, so you can tag them from a dropdown. Suggestions only
+# (you can still type anything). Edit these lists freely.
+tagging:
+  pillar_options:
+    - Unexpected Cheerleader
+    - Story / Emotion
+    - Cheer Craft
+    - Nerd Side
+    - Trending Format
+    - Cooking / Personality
+  hook_options:
+    - Identity contrast
+    - Age/milestone reveal
+    - Challenge/attempt
+    - Emotional story
+    - Humor
+    - Trending sound
+    - Before/after
+    - Question hook

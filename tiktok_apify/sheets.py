@@ -33,6 +33,8 @@ POST_HEADER_ALIASES = {
     "save": "saves",
     "link": "url",
     "url": "url",
+    "pillar": "pillar",
+    "hook": "hook",
 }
 
 # Weekly Log (v2 tracker) — one aggregate row per week. Aliases are matched by
@@ -168,12 +170,49 @@ class Tracker:
             log.info("Post Log: no new posts (all %d already logged).", len(posts))
             return 0
         if self.dry_run:
-            log.info("[dry-run] Would append %d new post(s) to Post Log at row %d.", added, next_row)
+            log.info("[dry-run] Would append %d new post(s) to Post Log at row %d "
+                     "(with Pillar/Hook dropdowns).", added, next_row)
             return added
 
         ws.update(range_name=f"A{next_row}", values=new_rows, value_input_option="USER_ENTERED")
+        self._apply_dropdowns(ws, colmap, next_row, len(new_rows))
         log.info("Post Log: appended %d new post(s).", added)
         return added
+
+    def _apply_dropdowns(self, ws, colmap: dict, start_row: int, n_rows: int) -> None:
+        """Attach Pillar / Hook Type dropdowns (suggestions, not strict) to the
+        just-appended rows, so new auto-added posts stay quick to tag."""
+        tagging = self.cfg.get("tagging") or {}
+        specs = [("pillar", tagging.get("pillar_options")),
+                 ("hook", tagging.get("hook_options"))]
+        requests = []
+        for field, options in specs:
+            if field not in colmap or not options:
+                continue
+            col = colmap[field]
+            requests.append({
+                "setDataValidation": {
+                    "range": {
+                        "sheetId": ws.id,
+                        "startRowIndex": start_row - 1,
+                        "endRowIndex": start_row - 1 + n_rows,
+                        "startColumnIndex": col,
+                        "endColumnIndex": col + 1,
+                    },
+                    "rule": {
+                        "condition": {
+                            "type": "ONE_OF_LIST",
+                            "values": [{"userEnteredValue": o} for o in options],
+                        },
+                        "showCustomUi": True,
+                        "strict": False,
+                    },
+                }
+            })
+        if not requests:
+            return
+        ws.spreadsheet.batch_update({"requests": requests})
+        log.info("Applied Pillar/Hook dropdowns to %d new Post Log row(s).", n_rows)
 
     def _ensure_field(self, ws, hdr_idx: int, header_cells: list, colmap: dict,
                       field: str, label: str) -> dict:

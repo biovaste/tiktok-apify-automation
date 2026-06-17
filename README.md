@@ -23,7 +23,9 @@ export every month or so.
 
 - **Post Log** — appends any new videos from the last 14 days. Dedup uses the
   `Link` column (the post URL) when present, otherwise `date + title` — the same
-  key the old CSV importer used, so nothing gets double-logged.
+  key the old CSV importer used, so nothing gets double-logged. New rows get
+  **Pillar / Hook Type dropdowns** attached automatically (suggestions, not
+  strict — see `tagging` in `config.yaml`) so they stay quick to tag.
 - **Weekly Log** — appends one aggregate row for the 7-day window ending on the
   run date: Week Start/End, Week #, New Followers, Total Followers, Posts This
   Week, Total Views/Likes/Comments/Shares, Avg Views/Post, and the week's Best
