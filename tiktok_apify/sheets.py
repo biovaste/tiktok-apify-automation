@@ -146,7 +146,7 @@ class Tracker:
             log.info("[dry-run] Would append %d new post(s) to Post Log at row %d.", added, next_row)
             return added
 
-        ws.update(f"A{next_row}", new_rows, value_input_option="USER_ENTERED")
+        ws.update(range_name=f"A{next_row}", values=new_rows, value_input_option="USER_ENTERED")
         log.info("Post Log: appended %d new post(s).", added)
         return added
 
@@ -162,7 +162,7 @@ class Tracker:
         if self.dry_run:
             log.info("[dry-run] Would add '%s' column to Post Log at %s.", label, a1)
         else:
-            ws.update(a1, [[label]], value_input_option="USER_ENTERED")
+            ws.update(range_name=a1, values=[[label]], value_input_option="USER_ENTERED")
             log.info("Added '%s' column to Post Log at %s.", label, a1)
         return colmap
 
@@ -220,7 +220,7 @@ class Tracker:
         if self.dry_run:
             log.info("[dry-run] Would append follower row: %s = %d (%+d).", date, count, diff)
             return True
-        ws.update(f"A{next_row}", new_row, value_input_option="USER_ENTERED")
+        ws.update(range_name=f"A{next_row}", values=new_row, value_input_option="USER_ENTERED")
         log.info("Follower Growth: appended %s = %d (%+d).", date, count, diff)
         return True
 
@@ -248,7 +248,7 @@ class Tracker:
             log.info("Created Trend Watch tab.")
         # Overwrite each week with the latest scan (header + fresh rows).
         ws.clear()
-        ws.update("A1", [header] + rows, value_input_option="USER_ENTERED")
+        ws.update(range_name="A1", values=[header] + rows, value_input_option="USER_ENTERED")
         ws.format("A1:J1", {"textFormat": {"bold": True}})
         log.info("Trend Watch: wrote %d rows.", len(rows))
         return len(rows)
