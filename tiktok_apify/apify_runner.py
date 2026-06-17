@@ -30,8 +30,9 @@ def run_profile(client: ApifyClient, cfg: dict) -> list[dict]:
     }
     days = p.get("recent_days")
     if days:
-        # "14" -> only videos from the last 14 days (small paid add-on, keeps cost low)
-        run_input["oldestPostDateUnified"] = str(days)
+        # The actor requires "<n> days" (or a YYYY-MM-DD date), not a bare number.
+        # Only scrape videos from the last N days (small paid add-on, keeps cost low).
+        run_input["oldestPostDateUnified"] = f"{days} days"
 
     log.info("Running profile scrape for @%s (last %s days)...", p["username"], days)
     run = client.actor(cfg["actor_id"]).call(run_input=run_input)
