@@ -33,6 +33,13 @@ export every month or so.
   and any extra columns don't matter.
 - **Trend Watch** — clears and rewrites a tab with the top hashtag videos
   (sorted by views), surfacing trending sounds/formats to riff on.
+- **Dashboard** — fully rebuilt from Post Log + Weekly Log into four blocks:
+  Growth Momentum (followers + trend sparklines), Content Scoreboard (pillar
+  performance + top/recent posts), Brand-Pitch Snapshot (reach, engagement rate,
+  best week), and Posting Consistency (vs your 4–5/week target). Values are
+  computed in Python (locale-proof) and refresh each run; pillar stats use your
+  manual Pillar tags. The rebuild is best-effort — if it fails, the data sync
+  above is unaffected. Disable with `--skip-dashboard`.
 
 Manual/private columns (Pillar, Hook Type, FYP %, Profile Views, Notes) are left
 blank for you to fill — the script never overwrites them.
@@ -90,9 +97,10 @@ how many videos per run, the date window, tab names. Edit, commit, push. No code
 changes needed.
 
 ```bash
-python sync.py --dry-run        # scrape, write nothing
-python sync.py --skip-trends    # Run A only (posts + followers)
-python sync.py --skip-profile   # Run B only (hashtag scan)
+python sync.py --dry-run         # scrape, write nothing
+python sync.py --skip-trends     # Run A only (posts + weekly)
+python sync.py --skip-profile    # Run B only (hashtag scan)
+python sync.py --skip-dashboard  # don't rebuild the Dashboard tab
 ```
 
 ---

@@ -63,6 +63,7 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true", help="scrape but write nothing")
     ap.add_argument("--skip-trends", action="store_true")
     ap.add_argument("--skip-profile", action="store_true")
+    ap.add_argument("--skip-dashboard", action="store_true")
     args = ap.parse_args()
 
     token = os.environ.get("APIFY_TOKEN")
@@ -85,6 +86,13 @@ def main() -> int:
         items = apify_runner.run_hashtags(client, cfg)
         trends = [mapping.map_trend(it) for it in items]
         tracker.write_trends(trends, today)
+
+    # Best-effort: a dashboard hiccup must never fail the data sync above.
+    if not args.skip_dashboard:
+        try:
+            tracker.rebuild_dashboard()
+        except Exception:
+            log.exception("Dashboard rebuild failed (data sync above is unaffected).")
 
     log.info("Done%s.", " (dry-run, nothing written)" if args.dry_run else "")
     return 0

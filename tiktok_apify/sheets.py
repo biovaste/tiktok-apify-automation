@@ -17,6 +17,8 @@ import os
 import gspread
 from google.oauth2.service_account import Credentials
 
+from . import dashboard
+
 log = logging.getLogger(__name__)
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
@@ -361,3 +363,72 @@ class Tracker:
         ws.format("A1:J1", {"textFormat": {"bold": True}})
         log.info("Trend Watch: wrote %d rows.", len(rows))
         return len(rows)
+
+    # ── Dashboard (rebuilt each run from the other tabs) ────────────────
+    @staticmethod
+    def _col_letter(idx0: int) -> str:
+        s, n = "", idx0 + 1
+        while n > 0:
+            n, rem = divmod(n - 1, 26)
+            s = chr(65 + rem) + s
+        return s
+
+    def _read_rows(self, name_substr: str, must_have: str, aliases: dict):
+        """Return (worksheet, colmap, header_idx, [row dicts]) for a tab, or
+        (ws, {}, None, []) if headers can't be found."""
+        ws = self._worksheet(name_substr)
+        if ws is None:
+            return None, {}, None, []
+        values = ws.get_all_values()
+        hdr, colmap = self._locate_header(values, must_have, aliases)
+        if hdr is None:
+            return ws, colmap, None, []
+        out = []
+        for raw in values[hdr + 1:]:
+            if not any(c.strip() for c in raw):
+                continue
+            out.append({f: (raw[ci] if ci < len(raw) else "") for f, ci in colmap.items()})
+        return ws, colmap, hdr, out
+
+    def rebuild_dashboard(self) -> bool:
+        ws_dash = self._worksheet("Dashboard")
+        if ws_dash is None:
+            log.warning("Dashboard tab not found — skipping dashboard rebuild.")
+            return False
+
+        _, _, _, post_rows = self._read_rows(self.cfg["sheets"]["post_log"], "view", POST_HEADER_ALIASES)
+        wk_ws, wk_cols, wk_hdr, weekly_rows = self._read_rows(
+            self.cfg["sheets"]["weekly_log"], "week start", WEEKLY_HEADER_ALIASES)
+
+        weekly_ref = None
+        if wk_ws is not None and wk_hdr is not None:
+            weekly_ref = {
+                "title": wk_ws.title,
+                "start_row": wk_hdr + 2,  # 1-based first data row
+                "cols": {f: self._col_letter(ci) for f, ci in wk_cols.items()},
+            }
+
+        username = self.cfg.get("profile", {}).get("username", "")
+        grid, requests = dashboard.build_dashboard(
+            ws_dash.id, username, post_rows, weekly_rows, self.cfg, weekly_ref)
+
+        if self.dry_run:
+            log.info("[dry-run] Would rebuild Dashboard: %d rows, %d posts, %d weeks.",
+                     len(grid), len(post_rows), len(weekly_rows))
+            return True
+
+        sid = ws_dash.id
+        # Clean slate: clear values, then drop the old layout's merges and styling
+        # so the fresh grid never collides with leftover merged cells.
+        ws_dash.clear()
+        ws_dash.spreadsheet.batch_update({"requests": [
+            {"unmergeCells": {"range": {"sheetId": sid}}},
+            {"repeatCell": {"range": {"sheetId": sid},
+                            "cell": {"userEnteredFormat": {}},
+                            "fields": "userEnteredFormat"}},
+        ]})
+        ws_dash.update(range_name="A1", values=grid, value_input_option="USER_ENTERED")
+        if requests:
+            ws_dash.spreadsheet.batch_update({"requests": requests})
+        log.info("Dashboard: rebuilt (%d posts, %d weeks).", len(post_rows), len(weekly_rows))
+        return True
